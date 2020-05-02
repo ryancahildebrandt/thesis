@@ -1,0 +1,1305 @@
+---
+title: "Thesis-Code-Github"
+author: "Ryan Hildebrandt"
+date: "5/2/2020"
+output: 
+  html_document: 
+    number_sections: yes
+    theme: yeti
+    toc: yes
+    toc_float: yes
+editor_options: 
+  chunk_output_type: inline
+---
+# Document Setup & Libraries
+```{r Setup & Libraries, echo=TRUE, message=FALSE, warning=FALSE, results="hide"}
+options(width = 10)
+library(formattable)
+library(DataExplorer)
+library(esquisse)
+library(car)
+library(MASS)
+library(ggfortify)
+library(rpivotTable)
+library(readxl)
+library(data.table)
+library(reshape2)
+library(DescTools)
+library(emmeans)
+library(jmv)
+library(ggthemes)
+library(wesanderson)
+library(ggpubr)
+library(kableExtra)
+library(apaTables)
+library(gridExtra)
+library(xlsx)
+library(gganimate)
+library(psych)
+library(tidyverse)
+library(magrittr)
+library(sjstats)
+library(jtools)
+library(ggstance)
+library(caret)
+library(rmarkdown)
+library(pander)
+```
+
+# Functions
+```{r Functions, message=FALSE, warning=FALSE, cache=TRUE, include=TRUE, paged.print=TRUE}
+#  changes Session.ID where ID was mis-entered or had to be changed
+fix.id <- function(x) {
+  fixd <- case_when(
+    x == "pb0401" ~ "pilotb0402",
+    x == "pilotb0829" ~ "pb0830",
+    x == "pilota1017" ~ "nb1018",
+    !x %in% c("pb0401", "pilotb0829", "pilota1017") ~ x
+  )
+  return(tolower(fixd))
+}
+
+#  Reading and formatting individual SuperLab files
+read.sl <- function(files) {
+  the.data <- read_delim(files,
+    "\t",
+    escape_double = FALSE,
+    col_names = FALSE,
+    col_types = cols(X5 = col_double()),
+    na = "empty",
+    trim_ws = TRUE,
+    skip = 6
+  )
+  if (length(colnames(the.data)) == 33) {
+    the.data$X10 <- NULL
+    colnames(the.data) <- paste0(rep("X", 32), 1:32)
+  }
+  colnames(the.data) <- sl.cols
+  data.frame(the.data)
+}
+
+#  Return valence and word type of word
+
+read.csv("./rawdata/Positive Emotion Label List.csv")
+pos.list <- c(as.vector(read.csv("./rawdata/Positive Emotion Label List.csv")[, 1]), as.vector(read.csv("./rawdata/Positive Emotion Laden List.csv")[, 1]))
+neg.list <- c(as.vector(read.csv("./rawdata/Negative Emotion Label List.csv")[, 1]), as.vector(read.csv("./rawdata/Negative Emotion Laden List.csv")[, 1]))
+neu.list <- c(as.vector(read.csv("./rawdata/Neutral.A List.csv")[, 1]), as.vector(read.csv("./rawdata/Neutral.B List.csv")[, 1]))
+e.list <- c(as.vector(read.csv("./rawdata/Positive Emotion Label List.csv")[, 1]), as.vector(read.csv("./rawdata/Negative Emotion Label List.csv")[, 1]))
+el.list <- c(as.vector(read.csv("./rawdata/Positive Emotion Laden List.csv")[, 1]), as.vector(read.csv("./rawdata/Negative Emotion Laden List.csv")[, 1]))
+
+get.val <- function(x) {
+  valence <- ifelse(x %in% pos.list, "Positive", ifelse(x %in% neg.list, "Negative", ifelse(x %in% neu.list, "Neutral", "None")))
+  return(valence)
+}
+get.wt <- function(x) {
+  wt <- ifelse(x %in% e.list, "Emotion-Label", ifelse(x %in% el.list, "Emotion-Laden", ifelse(x %in% neu.list, "Neutral", "None")))
+  return(wt)
+}
+
+#  Remove trials which had all NRs due to Superlab error
+remove.problem.trials <- function(x) {
+  trials.to.remove <- c("elated...comfort...puppy", "fun...kiss...victory", "joy...fun...cheer", "pride...jewel...tamper")
+  trimmed <- subset(x, !x$Trial.ID %in% trials.to.remove)
+  return(trimmed)
+}
+
+#  Recode factors to numeric levels for aggregation
+fac.to.num <- function(f) {
+  return(as.numeric(as.factor(f)))
+}
+```
+
+# Import BDI & STAI Data
+```{r Import BDI & STAI Data, message=FALSE, warning=FALSE, cache=TRUE, include=TRUE, paged.print=TRUE}
+#  Import inventory data and score----
+
+#  Reverse scored items
+stai.rev <- c(23, 24, 27, 30, 32, 33, 37, 38, 41, 42, 43, 45, 48, 49, 52, 55, 56, 58, 61)
+
+inventories <- read_excel("./rawdata/inventories.xlsx", col_types = c("text", rep("numeric", 61)))
+inventories[, stai.rev] <- 5 - inventories[, stai.rev]
+
+#  Rename & fix ID discrepancies
+#  Score inventories and categorize based on cutoffs
+bdi.cut <- 13
+stai.cut <- 43
+
+inventories <- inventories %>%
+  rename(., Session.ID = "id") %>%
+  mutate(.,
+    Session.ID = fix.id(.$Session.ID),
+    bdi.tot = rowSums(.[, 2:22]),
+    stai.y1.tot = rowSums(.[, 23:42]),
+    stai.y2.tot = rowSums(.[, 43:62])
+  ) %>%
+  mutate(.,
+    "bdi" = ifelse(.$bdi.tot >= bdi.cut, "Scoring", "Non-Scoring"),
+    "stai.y1" = ifelse(.$stai.y1.tot >= stai.cut, "Scoring", "Non-Scoring"),
+    "stai.y2" = ifelse(.$stai.y2.tot >= stai.cut, "Scoring", "Non-Scoring")
+  ) %>%
+  mutate(.,
+    mood.state.2 = ifelse(.$bdi == "Scoring" | .$stai.y1 == "Scoring" | .$stai.y2 == "Scoring", "Scoring", "Non-Scoring"),
+    mood.state.2.y1 = ifelse(.$bdi == "Scoring" | .$stai.y1 == "Scoring", "Scoring", "Non-Scoring"),
+    mood.state.2.y2 = ifelse(.$bdi == "Scoring" | .$stai.y2 == "Scoring", "Scoring", "Non-Scoring"),
+    mood.state.4.y1 = case_when(
+      .$bdi == "Scoring" & .$stai.y1 == "Non-Scoring" ~ "BDI Only",
+      .$bdi == "Non-Scoring" & .$stai.y1 == "Scoring" ~ "STAI Only",
+      .$bdi == "Scoring" & .$stai.y1 == "Scoring" ~ "BDI & STAI",
+      .$bdi == "Non-Scoring" & .$stai.y1 == "Non-Scoring" ~ "Non-Scoring"
+    ),
+    mood.state.4.y2 = case_when(
+      .$bdi == "Scoring" & .$stai.y2 == "Non-Scoring" ~ "BDI Only",
+      .$bdi == "Non-Scoring" & .$stai.y2 == "Scoring" ~ "STAI Only",
+      .$bdi == "Scoring" & .$stai.y2 == "Scoring" ~ "BDI & STAI",
+      .$bdi == "Non-Scoring" & .$stai.y2 == "Non-Scoring" ~ "Non-Scoring"
+    ),
+    mood.state.4 = case_when(
+      .$bdi == "Scoring" & (.$stai.y1 == "Non-Scoring" & .$stai.y2 == "Non-Scoring") ~ "BDI Only",
+      .$bdi == "Non-Scoring" & (.$stai.y1 == "Scoring" | .$stai.y2 == "Scoring") ~ "STAI Only",
+      .$bdi == "Scoring" & (.$stai.y1 == "Scoring" | .$stai.y2 == "Scoring") ~ "BDI & STAI",
+      .$bdi == "Non-Scoring" & (.$stai.y1 == "Non-Scoring" & .$stai.y2 == "Non-Scoring") ~ "Non-Scoring"
+    ),
+    mood.state.8 = case_when(
+      .$bdi == "Scoring" & .$stai.y1 == "Non-Scoring" & .$stai.y2 == "Non-Scoring" ~ "BDI Only",
+      .$bdi == "Non-Scoring" & .$stai.y1 == "Scoring" & .$stai.y2 == "Non-Scoring" ~ "STAI Y1 Only",
+      .$bdi == "Non-Scoring" & .$stai.y1 == "Non-Scoring" & .$stai.y2 == "Scoring" ~ "STAI Y2 Only",
+      .$bdi == "Scoring" & .$stai.y1 == "Scoring" & .$stai.y2 == "Non-Scoring" ~ "BDI & STAI Y1",
+      .$bdi == "Scoring" & .$stai.y1 == "Non-Scoring" & .$stai.y2 == "Scoring" ~ "BDI & STAI Y2",
+      .$bdi == "Non-Scoring" & .$stai.y1 == "Scoring" & .$stai.y2 == "Scoring" ~ "STAI Y1 & STAI Y2",
+      .$bdi == "Scoring" & .$stai.y1 == "Scoring" & .$stai.y2 == "Scoring" ~ "BDI & STAI Y1 & STAI Y2",
+      .$bdi == "Non-Scoring" & .$stai.y1 == "Non-Scoring" & .$stai.y2 == "Non-Scoring" ~ "Non-Scoring"
+    )
+  )
+
+#  Get mood state counts & proportions
+paged_table(inventories[, c(1, 63:75)])
+sapply(inventories[, 66:75], FUN = table)
+sapply(sapply(inventories[, 66:75], FUN = table), FUN = prop.table)
+```
+
+# Import SAM Ratings
+```{r Import Sam Ratings, message=FALSE, warning=FALSE, cache=TRUE, include=TRUE, paged.print=TRUE}
+
+#  Import ANEW ratings----
+anew.elp.full <- read_xlsx("./rawdata/stimuli worksheet.xlsx",
+  sheet = 6,
+  col_names = TRUE,
+  col_types = c("text", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "numeric", "text"),
+  trim_ws = TRUE
+)
+anew.elp <- rename(anew.elp.full[, c(1, 2, 3, 4, 5, 6, 10, 13, 14)], Target = Word)
+paged_table(anew.elp)
+
+#  SAM lists----
+pilot.sam.list <- as.vector(read.csv(file = "./rawdata/Pilot SAM List.txt", header = FALSE)[, 1])
+pos.sam.list <- as.vector(read.csv(file = "./rawdata/Positive SAM List.txt", header = FALSE)[, 1])
+neg.sam.list <- as.vector(read.csv(file = "./rawdata/Negative SAM List.txt", header = FALSE)[, 1])
+pilot.sam.cols <- as.vector(rbind(paste(pilot.sam.list, rep("Valence", 80)), paste(pilot.sam.list, rep("Arousal", 80))))
+pos.sam.cols <- as.vector(rbind(paste(pos.sam.list, rep("Valence", 80)), paste(pos.sam.list, rep("Arousal", 80))))
+neg.sam.cols <- as.vector(rbind(paste(neg.sam.list, rep("Valence", 80)), paste(neg.sam.list, rep("Arousal", 80))))
+
+
+#  SAM raw data import----
+qual.file <- "./rawdata/Qualtrics data.csv"
+sam.raw <- read.csv(
+  file = qual.file,
+  header = TRUE, skip = 2, colClasses = c(
+    rep("character", 4),
+    rep("numeric", 2),
+    rep("character", 12),
+    rep("numeric", 160),
+    "character",
+    "numeric",
+    rep("character", 3),
+    rep("numeric", 160),
+    rep("numeric", 160)
+  ),
+  col.names = as.vector(colnames(read.csv(
+    file = qual.file,
+    header = TRUE
+  ))), na.strings = ""
+)
+#  Reassigning some group names that recorded in a different form from the rest
+sam.raw$Q1.7[sam.raw$Q1.7 == 3] <- "PA"
+sam.raw$Q1.7[sam.raw$Q1.7 == 4] <- "PB"
+
+#  SAM ratings from PilotA and PilotB groups
+sam.pilot <- sam.raw[sam.raw$Q1.7 == "Pilot A" | sam.raw$Q1.7 == "Pilot B", c(9, 18, (grep("Q7", colnames(sam.raw))), grep("Q2", colnames(sam.raw)))]
+colnames(sam.pilot) <- c("QID", "Group", "PCode", "Age", "Gender", "Handedness", "DHOH", pilot.sam.cols)
+sam.pilot[, 8:167] <- 10 - sam.pilot[, 8:167]
+
+#  SAM ratings from PA and PB groups
+sam.pos <- sam.raw[sam.raw$Q1.7 == "PA" | sam.raw$Q1.7 == "PB", c(9, 18, (grep("Q7", colnames(sam.raw))), grep("Q3", colnames(sam.raw)))]
+colnames(sam.pos) <- c("QID", "Group", "PCode", "Age", "Gender", "Handedness", "DHOH", pos.sam.cols)
+sam.pos[, 8:167] <- 10 - sam.pos[, 8:167]
+
+#  SAM ratings from NA and NB groups
+sam.neg <- sam.raw[sam.raw$Q1.7 == "NA" | sam.raw$Q1.7 == "NB", c(9, 18, (grep("Q7", colnames(sam.raw))), grep("Q4", colnames(sam.raw)))]
+colnames(sam.neg) <- c("QID", "Group", "PCode", "Age", "Gender", "Handedness", "DHOH", neg.sam.cols)
+sam.neg[, 8:167] <- 10 - sam.neg[, 8:167]
+
+#  Combined SAM rating table with all groups
+sam <- bind_rows(sam.pilot, sam.pos, sam.neg)
+
+#  Fix column names and demographic responses
+f <- c("female", "Female", "Woman")
+m <- c("male", "Male")
+dhoh <- c("hard of hearing", "Deaf")
+ndhoh <- c("n/a", "Neither", "no", "No", "NO", "hearing", "hearing ", "None", "none")
+
+sam <- sam %>%
+  rename(., Session.ID = PCode, Hearing.Status = DHOH) %>%
+  mutate(.,
+    Session.ID = fix.id(.$Session.ID),
+    Gender = ifelse(sam$Gender %in% m, "Male", ifelse(sam$Gender %in% f, "Female", "Non-Binary")),
+    Hearing.Status = ifelse(sam$DHOH %in% dhoh, "Deaf/Hard-of-Hearing", "Hearing")
+  )
+paged_table(sam)
+```
+ 
+# Import SuperLab Data
+```{r Import SuperLab Data, message=FALSE, warning=FALSE, cache=TRUE, include=TRUE, paged.print=TRUE}
+#  Read column names----
+sl.cols <- gsub("NA", "", paste(
+  read.delim(
+    file = "./rawdata/timingtest2.txt", nrows = 2, skip = 3,
+    header = FALSE, na.strings = "", colClasses = rep("character", 32)
+  )[1, ],
+  read.delim(
+    file = "./rawdata/timingtest2.txt", nrows = 2, skip = 3,
+    header = FALSE, na.strings = "", colClasses = rep("character", 32)
+  )[2, ]
+))[c(1:9, 11:33)]
+
+#  define column classes, list of superlab files, and session IDs
+sl.class <- c(rep("character", 4), "numeric", "character", "numeric", "character", "numeric", "numeric", rep("character", 8), "numeric", rep("character", 14))
+sl.files <- list.files("./rawdata")[grep("\\d{4}\\.txt", list.files("./rawdata"))] %>% paste0("./rawdata/",.)
+sl.names <- gsub(".txt", "", sl.files)
+
+#  Read in all files and combine into a single table
+sl.l <- lapply(sl.files, FUN = read.sl)
+sl.raw <- bind_rows(sl.l)[c(1:11, 16:18, 25:32)]
+
+paged_table(sl.raw)
+```
+
+# SuperLab Data Formatting and Variable Creation
+```{r SuperLab Data Formatting and Variable Creation, message=FALSE, warning=FALSE, cache=TRUE, include=TRUE, paged.print=TRUE}
+sl.base <- sl.raw %>%
+  mutate(., #  Fix some participant group names and session IDs that were mis-input
+    Participant.Group = ifelse(.$Participant.Group == "NA", "n_a", ifelse(.$Participant.Group == "NB", "n_b", tolower(.$Participant.Group))),
+    Session.ID = fix.id(.$Session.ID),
+    Participant.Name = .$Session.ID
+  ) %>%
+  filter(
+    ., #  Remove unnecessary RT entries
+    .$Event.Name != "Fixation",
+    .$Event.Name != "Fixation Cross 1s7",
+    .$Event.Name != "Start Screen"
+  ) %>%
+  mutate(., #  Extract words from each trial and assign them to respective place in trial (target, pair1, pair2)
+    Word = substr(gsub("^.*?, ", "", .$Event.Name), 0, nchar(gsub("^.*?, ", "", .$Event.Name)) - 1)
+  ) %>%
+  mutate(
+    Target = lag(.$Word, 2),
+    Pair1 = lag(.$Word),
+    Pair2 = .$Word
+  ) %>%
+  mutate(., #  Get unique ID for each trial and valence/wt for all stimuli words
+    Trial.ID = paste0(.$Target, "...", .$Pair1, "...", .$Pair2),
+    Target.V = get.val(.$Target),
+    Pair1.V = get.val(.$Pair1),
+    Pair2.V = get.val(.$Pair2),
+    Target.WT = get.wt(.$Target),
+    Pair1.WT = get.wt(.$Pair1),
+    Pair2.WT = get.wt(.$Pair2)
+  ) %>%
+  mutate(., #  Get valence and WT of stimuli from previous trial
+    Previous.Target.V = lag(.$Target.V),
+    Previous.Pair1.V = lag(.$Pair1.V),
+    Previous.Pair2.V = lag(.$Pair2.V),
+    Previous.Target.WT = lag(.$Target.WT),
+    Previous.Pair1.WT = lag(.$Pair1.WT),
+    Previous.Pair2.WT = lag(.$Pair2.WT)
+  ) %>%
+  filter(
+    ., #  Remove unnecessary RT entries and DHOH participants
+    str_detect(.$Event.Name, "^Pair 2")
+  ) %>%
+  mutate(., #  Adjusting RTs based on SuperLab RTs starting from priming/satiation, not task
+    Reaction.Time = case_when(
+      .$X.Primed.Satiated == "Satiated" & .$Reaction.Time >= 25000 ~ .$Reaction.Time - (23830 + 1070),
+      .$X.Primed.Satiated == "Satiated" & .$Reaction.Time < 25000 ~ .$Reaction.Time,
+      .$X.Primed.Satiated == "Primed" & .$Reaction.Time >= 3000 ~ .$Reaction.Time - (3012 + 1070),
+      .$X.Primed.Satiated == "Primed" & .$Reaction.Time < 3000 ~ .$Reaction.Time
+    )
+  ) %>%
+  mutate(., Reaction.Time = ifelse(.$Reaction.Time == 0, NA, .$Reaction.Time)) %>% #  Recode 0s to NAs for no response trials
+  filter(., .$Reaction.Time >= 500 | is.na(.$Reaction.Time)) #  Remove reaction times less than 500ms, leaving NAs for no responses
+
+paged_table(sl.base)
+```
+
+# Merging SuperLab, SAM, and Inventory Data & Defining Pipeline to Format and Derive Variables from sl.merged
+```{r Merging SuperLab and SuperLab Pipeline, message=FALSE, warning=FALSE, cache=TRUE, include=TRUE, paged.print=TRUE}
+sl.merged <- sl.base %>%
+  merge(., select(inventories, c(Session.ID, bdi.tot:mood.state.8)), by = "Session.ID") %>% #  merge with inventory data
+  merge(., select(sam, c(Session.ID:"scared Valence")), by = "Session.ID") %>% #  merge with SAM data
+  filter(., .$Block.Name != "Practice") #  remove all practice trials
+
+sl.pipe <- function(sldf) {
+  sldf %>%
+    select(., c(Session.ID, Participant.Group, Block.Name, Participant.Response, Correct.Response, Error.Code, Reaction.Time, X.Primed.Satiated, Target:Hearing.Status)) %>% #  keep the relevant columns
+    mutate(.,
+      RTCorrect = ifelse(.$Error.Code == "C", .$Reaction.Time, NA), #  Only correct RT
+      RTError = ifelse(.$Error.Code == "E", .$Reaction.Time, NA), #  only incorrect RT
+      Word.Type.n = ifelse(.$Target.WT == "Neutral", NA, .$Target.WT), #  WT excluding neutral
+      Valence.n = ifelse(.$Target.V == "Neutral", NA, .$Target.V), #  Valence excluding neutral
+      Pair.MM = ifelse(.$Pair1.V == .$Pair2.V, "Match", "Mismatch"), #  valence relationship between pair1 and pair2
+      Pair.WT = case_when( #  word type combination of each pair, including order
+        .$Pair1.WT == "Emotion-Label" & .$Pair2.WT == "Emotion-Label" ~ "Emotion-Label",
+        .$Pair1.WT == "Emotion-Laden" & .$Pair2.WT == "Emotion-Laden" ~ "Emotion-Laden",
+        .$Pair1.WT == "Neutral" & .$Pair2.WT == "Neutral" ~ "Neutral",
+        .$Pair1.WT == "Emotion-Label" & .$Pair2.WT == "Emotion-Laden" ~ "Mixed E.EL",
+        .$Pair1.WT == "Emotion-Laden" & .$Pair2.WT == "Emotion-Label" ~ "Mixed EL.E",
+        .$Pair1.WT == "Emotion-Label" & .$Pair2.WT == "Neutral" ~ "Mixed E.NEU",
+        .$Pair1.WT == "Neutral" & .$Pair2.WT == "Emotion-Label" ~ "Mixed NEU.E",
+        .$Pair1.WT == "Neutral" & .$Pair2.WT == "Emotion-Laden" ~ "Mixed NEU.EL",
+        .$Pair1.WT == "Emotion-Laden" & .$Pair2.WT == "Neutral" ~ "Mixed EL.NEU"
+      )
+    ) %>%
+    mutate(.,
+      Correct.Response = ifelse(.$Pair1.V == .$Pair2.V, "Match", "Mismatch"),
+    ) %>%
+    mutate(.,
+      Error.Code = ifelse(.$Correct.Response == .$Participant.Response, "C", ifelse(.$Participant.Response == "", "NR", "E"))
+    ) %>%
+    mutate(.,
+      Pair.WT.n = ifelse(.$Pair.WT == "Neutral", NA, .$Pair.WT), #  pair wt excluding neutral
+      TPRValence = case_when( #  relationship between target and pair word valences
+        .$Target.V == .$Pair1.V & .$Target.V == .$Pair2.V ~ "Congruent",
+        .$Target.V == .$Pair1.V & .$Target.V != .$Pair2.V ~ "Pair 1 Congruent",
+        .$Target.V != .$Pair1.V & .$Target.V == .$Pair2.V ~ "Pair 2 Congruent",
+        .$Target.V != .$Pair1.V & .$Target.V != .$Pair2.V ~ "Incongruent"
+      ),
+      TPRWT = case_when( #  relationship between target and pair word word types
+        .$Target.WT == .$Pair1.WT & .$Target.WT == .$Pair2.WT ~ "Congruent",
+        .$Target.WT == .$Pair1.WT & .$Target.WT != .$Pair2.WT ~ "Pair 1 Congruent",
+        .$Target.WT != .$Pair1.WT & .$Target.WT == .$Pair2.WT ~ "Pair 2 Congruent",
+        .$Target.WT != .$Pair1.WT & .$Target.WT != .$Pair2.WT ~ "Incongruent"
+      )
+    ) %>%
+    mutate(.,
+      Valence.Congruency = paste0(.$Target.V, ".", .$TPRValence), #  code target valence and valence congruency as one variable
+      Word.Type.Congruency = paste0(.$Target.WT, ".", .$TPRWT), #  code target wt and wt congruency as one variable
+      Primed.Satiated.MM = paste0(.$X.Primed.Satiated, ".", .$Pair.MM), #  code priming/satiation and task match/mismatch together
+      RTC.CongruentV = ifelse(.$Error.Code == "C" & .$TPRValence %in% c("Congruent", "Pair 1 Congruent", "Pair 2 Congruent"), .$Reaction.Time, NA), #  rts from valence congruent trials with correct responses
+      RTA.CongruentV = ifelse(.$TPRValence %in% c("Congruent", "Pair 1 Congruent", "Pair 2 Congruent"), .$Reaction.Time, NA) #  all rts from valence congruent trials
+    ) %>%
+    mutate(.,
+      Valence.Congruency.n = ifelse(.$Target.V == "Neutral", NA, .$Valence.Congruency), #  valence congruency excluding neutral targets
+      Word.Type.Congruency.n = ifelse(.$Target.WT == "Neutral", NA, .$Word.Type.Congruency) #  wt congruency excluding neutral targets
+    ) %>%
+    mutate(., Valence.Congruency.Congruent = ifelse(.$TPRValence %in% c("Congruent", "Pair 1 Congruent", "Pair 2 Congruent"), .$Valence.Congruency, NA)) %>% #  valence vongruency with only congruent trials
+    mutate(., Valence.Congruency.n.Congruent = ifelse(.$Target.WT == "Neutral", NA, .$Valence.Congruency.Congruent)) %>% #  valence congruency, only congruent and excluding neutral targets
+    filter(., .$Hearing.Status == "Hearing") %>% #  get rid of DHOH participants, they differed significantly from the rest in terms of mean RT
+    remove.problem.trials(.) %>% #  get rid of misrecorded trials
+    return(.)
+}
+```
+
+# SAM Descriptives
+```{r SAM Descriptives, message=FALSE, warning=FALSE, cache=TRUE, include=TRUE, paged.print=TRUE}
+#  Demographics Descriptives
+formattable(describe(sam$Age))
+formattable(table(sam$Gender))
+formattable(table(sam$Handedness))
+formattable(table(sam$Hearing.Status))
+
+#  SAM Valence & Arousal Descriptives, Comparisons & Plots
+sam.desc <- describe(sam)
+
+sam.desc.val <- sam.desc %>%
+  filter(., str_detect(rownames(.), "Valence$")) %>%
+  rename(., Target = "vars") %>%
+  mutate(., Target = gsub(" Valence", "", rownames(sam.desc)[str_detect(rownames(sam.desc), "Valence$")]))
+sam.comp.val <- sam.desc.val %>%
+  merge(., select(anew.elp, c(Target, "Valence Mean", "Valence SD")), by = "Target") %>%
+  rename(., "Rated.Mean" = mean, "ANEW.Mean" = "Valence Mean", "ANEW.SD" = "Valence SD") %>%
+  mutate(., Difference = .$"Rated.Mean" - .$"ANEW.Mean")
+plot_histogram(sam.comp.val$Difference)
+
+sam.desc.ar <- sam.desc %>%
+  filter(., str_detect(rownames(.), "Arousal$")) %>%
+  rename(., Target = "vars") %>%
+  mutate(., Target = gsub(" Arousal", "", rownames(sam.desc)[str_detect(rownames(sam.desc), "Arousal$")]))
+sam.comp.ar <- sam.desc.ar %>%
+  merge(., select(anew.elp, c(Target, "Arousal Mean", "Arousal SD")), by = "Target") %>%
+  rename(., "Rated.Mean" = mean, "ANEW.Mean" = "Arousal Mean", "ANEW.SD" = "Arousal SD") %>%
+  mutate(., Difference = .$"Rated.Mean" - .$"ANEW.Mean")
+plot_histogram(sam.comp.ar$Difference)
+
+paged_table(sam.desc)
+
+#  arousal differences----
+range(sam.comp.ar$"ANEW.Mean")
+range(sam.comp.ar$"Rated.Mean")
+range(sam.comp.ar$Difference)
+ar.diffs <- subset(sam.comp.ar, abs(sam.comp.ar$Difference) > 2)
+paged_table(ar.diffs)
+
+#  collapse SAM ratings by participant----
+sam.cat <- sam
+sam.cat.col.val <- get.val((gsub(" Valence", "", colnames(sam.cat))[8:247]))
+
+sam.cat$pos.val <- rowMeans(sam.cat[, 8:247][sam.cat.col.val == "Positive"])
+sam.cat$neg.val <- rowMeans(sam.cat[, 8:247][sam.cat.col.val == "Negative"])
+sam.cat$neu.val <- rowMeans(sam.cat[, 8:247][sam.cat.col.val == "Neutral"])
+
+sam.cat <- select(sam.cat, c(Group:Hearing.Status, pos.val:neu.val))
+
+#confirmatory word difference testing
+t.test(sam.desc.ar$mean[get.val(sam.desc.ar$Target)=="Positive"],
+       sam.desc.ar$mean[get.val(sam.desc.ar$Target)=="Negative"])
+t.test(sam.desc.ar$mean[get.val(sam.desc.ar$Target)=="Positive"],
+       sam.desc.ar$mean[get.val(sam.desc.ar$Target)=="Neutral"])
+t.test(sam.desc.ar$mean[get.val(sam.desc.ar$Target)=="Neutral"],
+       sam.desc.ar$mean[get.val(sam.desc.ar$Target)=="Negative"])
+  
+t.test(sam.desc.val$mean[get.val(sam.desc.ar$Target)=="Positive"],
+       sam.desc.val$mean[get.val(sam.desc.ar$Target)=="Negative"])
+t.test(sam.desc.val$mean[get.val(sam.desc.ar$Target)=="Positive"],
+       sam.desc.val$mean[get.val(sam.desc.ar$Target)=="Neutral"])
+t.test(sam.desc.val$mean[get.val(sam.desc.ar$Target)=="Neutral"],
+       sam.desc.val$mean[get.val(sam.desc.ar$Target)=="Negative"])
+
+
+```
+
+# SAM vs ANEW Categorical Comparisons
+```{r SAM vs ANEW Categorical Comparisons, message=FALSE, warning=FALSE, cache=TRUE, include=TRUE, paged.print=TRUE}
+#  Function to return the categorical valence of a given valence rating
+get.val.cat <- function(x) {
+  valence <- ifelse(data.table::between(x, 6, 10, incbounds = FALSE),
+    "Positive",
+    ifelse(data.table::between(x, 0, 4, incbounds = FALSE),
+      "Negative",
+      ifelse(data.table::between(x, 4, 6, incbounds = TRUE),
+        "Neutral", "None"
+      )
+    )
+  )
+  return(valence)
+}
+
+#  Comparing valence categories based on SAM averages
+sam.cat.comp.val <- sam.comp.val %>%
+  mutate(.,
+    Rated.Category = get.val.cat(.$Rated.Mean),
+    ANEW.Category = get.val(.$Target),
+    Target.Word.Type = get.wt(.$Target)
+  ) %>%
+  mutate(.,
+    Category.Comparison = ifelse(.$ANEW.Category == .$Rated.Category, "Same", "Different")
+  ) %>%
+  mutate(.,
+    Rated.Word.Type = case_when(
+      .$ANEW.Category == "Neutral" & .$Rated.Category == "Negative" ~ "Emotion-Laden",
+      .$ANEW.Category == "Neutral" & .$Rated.Category == "Positive" ~ "Emotion-Laden",
+      .$ANEW.Category != "Neutral" & .$Rated.Category == "Neutral" ~ "Neutral",
+      TRUE ~ .$Target.Word.Type
+    )
+  )
+paged_table(sam.cat.comp.val)
+
+#  Isolate differences & Graph----
+
+cat.comp.mismatches <- sam.cat.comp.val %>%
+  select(., c(Target:Rated.Mean, ANEW.Mean, Difference:Rated.Word.Type)) %>%
+  filter(., .$Category.Comparison == "Different")
+paged_table(cat.comp.mismatches)
+
+#  Mismatched words by category
+unique(cat.comp.mismatches$Target[cat.comp.mismatches$ANEW.Category == "Positive" & cat.comp.mismatches$Rated.Category == "Neutral"])
+unique(cat.comp.mismatches$Target[cat.comp.mismatches$ANEW.Category == "Negative" & cat.comp.mismatches$Rated.Category == "Neutral"])
+unique(cat.comp.mismatches$Target[cat.comp.mismatches$ANEW.Category == "Neutral" & cat.comp.mismatches$Rated.Category == "Negative"])
+
+#  Histograms
+plot_histogram(cat.comp.mismatches$Difference)
+plot_histogram(cat.comp.mismatches$Rated.Mean)
+plot_histogram(cat.comp.mismatches$ANEW.Mean)
+
+#  Tables
+formattable(table(cat.comp.mismatches$Rated.Category))
+formattable(table(cat.comp.mismatches$ANEW.Category))
+formattable(table(cat.comp.mismatches$Target.Word.Type))
+formattable(table(cat.comp.mismatches$Rated.Word.Type))
+formattable(table(cat.comp.mismatches[, c(6, 7)]))
+formattable(table(cat.comp.mismatches[, c(8, 10)]))
+
+#  Comparing valence categories based individual ratings
+sam.val.ind <- sam %>%
+  select(., Session.ID, ends_with("Valence")) %>%
+  melt(.) %>%
+  rename(.,
+    Target = "variable",
+    Rated.Mean = "value"
+  ) %>%
+  mutate(.,
+    Target = gsub(" Valence", "", .$Target)
+  ) %>%
+  mutate(.,
+    Rated.Category = get.val.cat(.$Rated.Mean),
+    ANEW.Category = get.val(.$Target),
+    Target.Word.Type = get.wt(.$Target)
+  ) %>%
+  mutate(.,
+    Category.Comparison = ifelse(.$ANEW.Category == .$Rated.Category, "Same", "Different")
+  ) %>%
+  mutate(.,
+    Rated.Word.Type = case_when(
+      .$ANEW.Category == "Neutral" & .$Rated.Category == "Negative" ~ "Emotion-Laden",
+      .$ANEW.Category == "Neutral" & .$Rated.Category == "Positive" ~ "Emotion-Laden",
+      .$ANEW.Category != "Neutral" & .$Rated.Category == "Neutral" ~ "Neutral",
+      TRUE ~ .$Target.Word.Type
+    )
+  )
+paged_table(sam.val.ind)
+
+cat.ind.mismatches <- sam.val.ind %>%
+  filter(., .$Category.Comparison == "Different")
+paged_table(cat.ind.mismatches)
+
+#  Mismatched words by category
+unique(cat.ind.mismatches$Target[cat.ind.mismatches$ANEW.Category == "Positive" & cat.ind.mismatches$Rated.Category == "Neutral"])
+unique(cat.ind.mismatches$Target[cat.ind.mismatches$ANEW.Category == "Negative" & cat.ind.mismatches$Rated.Category == "Neutral"])
+unique(cat.ind.mismatches$Target[cat.ind.mismatches$ANEW.Category == "Neutral" & cat.ind.mismatches$Rated.Category == "Negative"])
+
+#  Tables
+formattable(table(cat.ind.mismatches$Session.ID))
+formattable(table(cat.ind.mismatches$Target))
+formattable(table(cat.ind.mismatches$Rated.Category))
+formattable(table(cat.ind.mismatches$ANEW.Category))
+formattable(table(cat.ind.mismatches$Target.Word.Type))
+formattable(table(cat.ind.mismatches$Rated.Word.Type))
+formattable(table(cat.ind.mismatches[, c(4, 5)]))
+formattable(table(cat.ind.mismatches[, c(6, 8)]))
+```
+
+# Passing Data Through sl.pipe and Recoding Valence Categories
+```{r Passing Data Through sl.pipe and Recoding Valence Categories, message=FALSE, warning=FALSE, cache=TRUE, include=TRUE, paged.print=TRUE}
+
+#  Main Data Frame
+sl.trimmed <- sl.pipe(sl.merged)
+
+#  get. functions for recoding
+get.val.cat.avg <- function(x) {
+  valence <- sam.cat.comp.val$Rated.Category[sam.cat.comp.val$Target == x]
+  return(valence)
+}
+get.wt.avg <- function(x) {
+  wt <- sam.cat.comp.val$Rated.Word.Type[sam.cat.comp.val$Target == x]
+  return(wt)
+}
+get.val.cat.ind <- function(x, id) {
+  valence <- sam.val.ind$Rated.Category[sam.val.ind$Target == x & sam.val.ind$Session.ID == id]
+  return(valence)
+}
+get.wt.ind <- function(x, id) {
+  wt <- sam.val.ind$Rated.Word.Type[sam.val.ind$Target == x & sam.val.ind$Session.ID == id]
+  return(wt)
+}
+
+#  Recoding Based on SAM Averages
+sl.recoded.avg <- sl.trimmed %>%
+  mutate(., #  rewrite stimuli valences and wts
+    Target.V = sapply(.$Target, FUN = get.val.cat.avg),
+    Pair1.V = sapply(.$Pair1, FUN = get.val.cat.avg),
+    Pair2.V = sapply(.$Pair2, FUN = get.val.cat.avg),
+    Target.WT = sapply(.$Target, FUN = get.wt.avg),
+    Pair1.WT = sapply(.$Pair1, FUN = get.wt.avg),
+    Pair2.WT = sapply(.$Pair2, FUN = get.wt.avg)
+  ) %>%
+  sl.pipe(.)
+
+#  Recoding Based on Individual Participant Ratings
+sl.recoded.ind <- sl.trimmed %>%
+  mutate(., #  rewrite stimuli valences and wts
+    Target.V = mapply(get.val.cat.ind, .$Target, .$Session.ID),
+    Pair1.V = mapply(get.val.cat.ind, .$Pair1, .$Session.ID),
+    Pair2.V = mapply(get.val.cat.ind, .$Pair2, .$Session.ID),
+    Target.WT = mapply(get.wt.ind, .$Target, .$Session.ID),
+    Pair1.WT = mapply(get.wt.ind, .$Pair1, .$Session.ID),
+    Pair2.WT = mapply(get.wt.ind, .$Pair2, .$Session.ID)
+  ) %>%
+  sl.pipe(.)
+
+#  Removing Based on SAM Averages
+sl.removed.avg <- sl.trimmed %>%
+  filter(
+    .,
+    !.$Target %in% cat.comp.mismatches$Target,
+    !.$Pair1 %in% cat.comp.mismatches$Target,
+    !.$Pair2 %in% cat.comp.mismatches$Target
+  ) %>%
+  sl.pipe(.)
+nrow(sl.removed.avg)
+
+#  Removing Based on Individual Participant Ratings
+sl.removed.ind <- sl.trimmed %>%
+  filter(
+    .,
+    get.val(.$Target) != mapply(get.val.cat.ind, .$Target, .$Session.ID),
+    get.val(.$Pair1) != mapply(get.val.cat.ind, .$Target, .$Session.ID),
+    get.val(.$Pair2) != mapply(get.val.cat.ind, .$Target, .$Session.ID)
+  ) %>%
+  sl.pipe(.)
+nrow(sl.removed.ind)
+```
+
+# Factorize & Aggregate For Repeated Measures Mixed ANOVAs
+```{r Factorize & Aggregate for RMANOVAs , message=FALSE, cache=TRUE, warning=FALSE, include=TRUE, paged.print=TRUE}
+#Factorize
+rmaov.pipe <- function(df) {
+  sl.factorized <- df %>%
+    mutate_if(sapply(., is.character), as.factor) %>%
+    mutate_if(sapply(., is.factor), fac.to.num)
+  sl.agg.desc <- sl.factorized %>%
+    dplyr::select(., Session.ID, Participant.Group, X.Primed.Satiated, Target.V, Target.WT, TPRValence, bdi, Error.Code, Reaction.Time) %>%
+    group_by(., Session.ID, Participant.Group, X.Primed.Satiated, Target.V, TPRValence, Target.WT, bdi, Error.Code) %>%
+    summarise_all(list(length = length, mean = mean, median = median, sd = sd, min = min, max = max)) %>%
+    rename(RTCMean = "mean", n = "length", Congruency = TPRValence)
+  sl.agg <- sl.factorized %>%
+    dplyr::select(., Session.ID, Participant.Group, X.Primed.Satiated, Target.V, Target.WT, TPRValence, bdi, Error.Code, Reaction.Time) %>%
+    group_by(., Session.ID, Participant.Group, X.Primed.Satiated, Target.V, TPRValence, Target.WT, bdi, Error.Code) %>%
+    summarise_all(list(mean = mean)) %>%
+    rename(RTCMean = mean, Congruency = TPRValence)
+
+  sl.agg.rm <- sl.factorized %>%
+    dplyr::select(Session.ID, Participant.Group, X.Primed.Satiated, Target.V, Target.WT, TPRValence, bdi, Error.Code, Reaction.Time) %>%
+    group_by(Session.ID, Participant.Group, X.Primed.Satiated, Target.V, TPRValence, Target.WT, bdi, Error.Code) %>%
+    summarise_all(list(mean = mean)) %>%
+    filter(Error.Code == 1, Target.WT != 3, Target.V != 3) %>%
+    merge(., c(distinct(sl.agg[, 1:2])), by = "Session.ID") %>%
+    dplyr::select(., -Participant.Group.y) %>%
+    rename(RTCMean = mean, Congruency = TPRValence, Participant.Group = Participant.Group.x) %>%
+    mutate(Participant.Group = ifelse(.$Participant.Group %in% c(1, 2), 1, 2))
+  
+  sl.agg.rm.spss <- sl.agg.rm %>%
+    recast(.,
+      formula = Session.ID ~ Target.WT + X.Primed.Satiated,
+      id.var = c("Session.ID", "Target.WT", "X.Primed.Satiated"),
+      measure.var = "RTCMean",
+      fun = mean
+    ) %>%
+    merge(., c(distinct(sl.agg[, c(1:2, 7)])), by = "Session.ID") %>%
+    mutate(Participant.Group = ifelse(.$Participant.Group %in% c(1, 2), 1, 2))
+  write.csv(sl.agg.rm.spss, "sl.agg.rm.spss.csv")
+
+    rm.simple <- jmv::anovaRM(
+    data = sl.agg.rm.spss,
+    rm = list(
+        list(
+            label="Word Type",
+            levels=c("Emotion-label", "Emotion-laden")),
+        list(
+            label="Primed/Satiated",
+            levels=c("Primed", "Satiated"))),
+    rmCells = list(
+        list(
+            measure="1_1",
+            cell=c("Emotion-label", "Primed")),
+        list(
+            measure="1_2",
+            cell=c("Emotion-label", "Satiated")),
+        list(
+            measure="2_1",
+            cell=c("Emotion-laden", "Primed")),
+        list(
+            measure="2_2",
+            cell=c("Emotion-laden", "Satiated"))),
+    bs = Participant.Group,
+    effectSize = c("ges", "eta", "partEta"),
+    depLabel = "RT",
+    rmTerms = ~ `Word Type` + `Primed/Satiated` + `Word Type`:`Primed/Satiated`,
+    bsTerms = ~ Participant.Group,
+    spherTests = TRUE,
+    leveneTest = TRUE,
+    postHoc = list(
+        "Word Type",
+        "Primed/Satiated",
+        c("Word Type", "Primed/Satiated"),
+        "Participant.Group",
+        c("Word Type", "Participant.Group"),
+        c(
+            "Primed/Satiated",
+            "Participant.Group"),
+        c(
+            "Word Type",
+            "Primed/Satiated",
+            "Participant.Group")),
+    postHocCorr = c("tukey","scheffe"),
+    emmPlots = FALSE,
+    emmWeights = FALSE,
+    groupSumm = TRUE)
+
+  rm.bdi <- jmv::anovaRM(
+    data = sl.agg.rm.spss,
+    rm = list(
+        list(
+            label="Word Type",
+            levels=c("Emotion-label", "Emotion-laden")),
+        list(
+            label="Primed/Satiated",
+            levels=c("Primed", "Satiated"))),
+    rmCells = list(
+        list(
+            measure="1_1",
+            cell=c("Emotion-label", "Primed")),
+        list(
+            measure="1_2",
+            cell=c("Emotion-label", "Satiated")),
+        list(
+            measure="2_1",
+            cell=c("Emotion-laden", "Primed")),
+        list(
+            measure="2_2",
+            cell=c("Emotion-laden", "Satiated"))),
+    bs = vars(Participant.Group, bdi),
+    effectSize = c("ges", "eta", "partEta"),
+    depLabel = "RT",
+    rmTerms = ~ `Word Type` + `Primed/Satiated` + `Word Type`:`Primed/Satiated`,
+    bsTerms = ~ Participant.Group + bdi + Participant.Group:bdi,
+    spherTests = TRUE,
+    leveneTest = TRUE,
+    postHoc = list(),
+    postHocCorr = NULL,
+    emmPlots = FALSE,
+    emmWeights = FALSE,
+    groupSumm = TRUE
+    )
+  return(list(
+    rm.simple,
+    rm.bdi
+  ))
+  }
+
+#rmaov.pipe(sl.trimmed)
+#rmaov.pipe(sl.recoded.avg)
+#rmaov.pipe(sl.recoded.ind)
+#rmaov.pipe(sl.removed.avg)
+#rmaov.pipe(sl.removed.ind)
+```
+
+# Complete SuperLab Descriptives
+```{r Complete SuperLab Descriptives, message=FALSE, warning=FALSE, cache=TRUE, include=TRUE, paged.print=TRUE}
+
+desc.pipe <- function(df) {
+  return(list(
+    prop.table(table(df$Participant.Group)),
+    prop.table(table(df$Correct.Response)),
+    prop.table(table(df$Error.Code)),
+    prop.table(table(df$X.Primed.Satiated)),
+    prop.table(table(df$Target.V)),
+    prop.table(table(df$Pair1.V)),
+    prop.table(table(df$Pair2.V)),
+    prop.table(table(df$Target.WT)),
+    prop.table(table(df$Pair1.WT)),
+    prop.table(table(df$Pair2.WT)),
+    prop.table(table(df$bdi)),
+    prop.table(table(df$stai.y1)),
+    prop.table(table(df$stai.y2)),
+    prop.table(table(df$mood.state.2)),
+    prop.table(table(df$mood.state.2.y1)),
+    prop.table(table(df$mood.state.2.y2)),
+    prop.table(table(df$mood.state.4.y1)),
+    prop.table(table(df$mood.state.4.y2)),
+    prop.table(table(df$mood.state.4)),
+    prop.table(table(df$mood.state.8)),
+    prop.table(table(df$Age)),
+    prop.table(table(df$Gender)),
+    prop.table(table(df$Handedness)),
+    prop.table(table(df$Hearing.Status)),
+    prop.table(table(df$Pair.MM)),
+    prop.table(table(df$Pair.WT)),
+    prop.table(table(df$TPRValence)),
+    prop.table(table(df$TPRWT)),
+    prop.table(table(df$Valence.Congruency)),
+    prop.table(table(df$Word.Type.Congruency)),
+    prop.table(table(df$Primed.Satiated.MM)),
+    describe(select(df, Reaction.Time, bdi.tot, stai.y1.tot, stai.y2.tot, Age))
+  ))
+}
+desc.pipe(sl.trimmed)
+desc.pipe(sl.recoded.avg)
+desc.pipe(sl.recoded.ind)
+desc.pipe(sl.removed.avg)
+desc.pipe(sl.removed.ind)
+```
+
+# Accuracy Analyses
+```{r Accuracy Analyses, message=FALSE, warning=FALSE, cache=TRUE, include=TRUE, paged.print=TRUE}
+rt.participant <- aggregate(sl.trimmed$Reaction.Time, by = list(sl.trimmed$Session.ID), FUN = mean, na.rm = TRUE) %>%
+  rename(., Session.ID = "Group.1", Reaction.Time = "x")
+
+#  Accuracy By Participant Pipes
+accuracy.df.pipe <- function(sldf) {
+  sldf.accuracy <- sldf %>%
+    select(., c(Session.ID, Error.Code)) %>%
+    table(.) %>%
+    data.frame(.) %>%
+    recast(., formula = Session.ID ~ Error.Code, id.var = c("Session.ID", "Error.Code")) %>%
+    merge(., rt.participant, by = "Session.ID") %>%
+    mutate(.,
+      Response.Rate = (.$C + .$E) / (.$C + .$E + .$NR),
+      Accuracy = .$C / (.$C + .$E)
+    ) %>%
+    return(.)
+}
+accuracy.vis.pipe <- function(sldf.accuracy) {
+  return(
+    list(
+      formattable(describe(sldf.accuracy)),
+      plot_histogram(sldf.accuracy$Accuracy),
+      plot_histogram(sldf.accuracy$Response.Rate),
+      plot_histogram(sldf.accuracy$Reaction.Time),
+      boxplot(sldf.accuracy$Response.Rate),
+      boxplot(sldf.accuracy$Accuracy),
+      boxplot(sldf.accuracy$Reaction.Time),
+      formattable(cor(sldf.accuracy[2:7]))
+    )
+  )
+}
+accuracy.trial.pipe <- function(sldf) {
+  acc.trial <- sldf %>%
+    recast(., formula = Trial.ID ~ Error.Code, id.var = c("Trial.ID", "Error.Code")) %>%
+    mutate(.,
+      Response.Rate = (.$C + .$E) / (.$C + .$E + .$NR),
+      Accuracy = .$C / (.$C + .$E)
+    )
+  return(
+    list(
+      formattable(acc.trial),
+      plot_histogram(acc.trial$Accuracy)
+    )
+  )
+}
+
+#  Apply Pipes to Data Frames
+
+acc.sl.trimmed <- sl.trimmed %>%
+  accuracy.df.pipe(.) %T>%
+  accuracy.vis.pipe(.)
+  
+acc.sl.recoded.avg <- sl.recoded.avg %>%
+  accuracy.df.pipe(.) %T>%
+  accuracy.vis.pipe(.)
+
+acc.sl.recoded.ind <- sl.recoded.ind %>%
+  accuracy.df.pipe(.) %T>%
+  accuracy.vis.pipe(.)
+
+acc.sl.removed.avg <- sl.removed.avg %>%
+  accuracy.df.pipe(.) %T>%
+  accuracy.vis.pipe(.)
+
+acc.sl.removed.ind <- sl.removed.ind %>%
+  accuracy.df.pipe(.) %T>%
+  accuracy.vis.pipe(.)
+
+accuracy.trial.pipe(sl.trimmed)
+accuracy.trial.pipe(sl.recoded.avg)
+accuracy.trial.pipe(sl.recoded.ind)
+accuracy.trial.pipe(sl.removed.avg)
+accuracy.trial.pipe(sl.removed.ind)
+```
+
+# ANOVAs
+```{r ANOVAs, message=FALSE, warning=FALSE, cache=TRUE, include=TRUE, paged.print=TRUE}
+#aov.pipe for the main anova analyses
+aov.pipe <- function(sldf){
+  return(list(planned3=jmv::ANOVA(
+    formula = Reaction.Time ~ X.Primed.Satiated * Word.Type.n * Valence.Congruency.n,
+    data = dplyr::filter(sldf, bdi == "Non-Scoring" & Error.Code == "C"),
+    effectSize = c("eta", "partEta"),
+    homo = TRUE,
+    norm = TRUE,
+    qq = TRUE,
+    postHoc = ~ X.Primed.Satiated * Word.Type.n * Valence.Congruency.n,
+    postHocCorr = c("tukey", "scheffe"),
+    emMeans = ~ X.Primed.Satiated * Word.Type.n * Valence.Congruency.n,
+    emmTables = TRUE),
+     wt3=jmv::ANOVA(
+    formula = Reaction.Time ~ bdi * X.Primed.Satiated * Target.WT,
+    data = dplyr::filter(sldf, Error.Code == "C"),
+    effectSize = c("eta", "partEta"),
+    homo = TRUE,
+    norm = TRUE,
+    qq = TRUE,
+    postHoc = ~ bdi * X.Primed.Satiated * Target.WT,
+    postHocCorr = c("tukey", "scheffe"),
+    emMeans = ~ bdi * X.Primed.Satiated * Target.WT,
+    emmTables = TRUE),
+     v3=jmv::ANOVA(
+    formula = Reaction.Time ~ bdi * X.Primed.Satiated * Valence.Congruency.n,
+    data = dplyr::filter(sldf, Error.Code == "C"),
+    effectSize = c("eta", "partEta"),
+    homo = TRUE,
+    norm = TRUE,
+    qq = TRUE,
+    postHoc = ~ bdi * X.Primed.Satiated * Valence.Congruency.n,
+    postHocCorr = c("tukey", "scheffe"),
+    emMeans = ~ bdi * X.Primed.Satiated * Valence.Congruency.n,
+    emmTables = TRUE),
+     rta4=jmv::ANOVA(
+    formula = Reaction.Time ~ bdi * X.Primed.Satiated * Word.Type.n * Valence.Congruency.n,
+    data = sldf,
+    effectSize = c("eta", "partEta"),
+    homo = TRUE,
+    norm = TRUE,
+    qq = TRUE,
+    postHoc = ~ bdi * X.Primed.Satiated * Word.Type.n * Valence.Congruency.n,
+    postHocCorr = c("tukey", "scheffe"),
+    emMeans = ~ bdi * X.Primed.Satiated * Word.Type.n * Valence.Congruency.n,
+    emmTables = TRUE),
+     rtc4=jmv::ANOVA(
+    formula = Reaction.Time ~ bdi * X.Primed.Satiated * Word.Type.n * Valence.Congruency.n,
+    data = dplyr::filter(sldf, Error.Code == "C"),
+    effectSize = c("eta", "partEta"),
+    homo = TRUE,
+    norm = TRUE,
+    qq = TRUE,
+    postHoc = ~ bdi * X.Primed.Satiated * Word.Type.n * Valence.Congruency.n,
+    postHocCorr = c("tukey", "scheffe"),
+    emMeans = ~ bdi * X.Primed.Satiated * Word.Type.n * Valence.Congruency.n,
+    emmTables = TRUE)))
+}
+
+#    aov.pipe(sl.trimmed)
+#aov.pipe(sl.recoded.avg)
+#  aov.pipe(sl.recoded.ind) # singular
+#  aov.pipe(sl.removed.avg) # Too many missing values, imbalanced, disregard
+#  aov.pipe(sl.removed.ind) # Too many missing values, imbalanced, disregard
+
+```
+
+# Linear Models
+```{r Linear Models , message=FALSE, warning=FALSE, cache=TRUE, include=TRUE, paged.print=TRUE}
+sl.regression <- sl.trimmed %>%
+  merge(., sam.cat.comp.val[c("Target", "Rated.Mean", "ANEW.Mean", "Difference", "Rated.Category", "ANEW.Category")], by = "Target") %>%
+  merge(., sam.comp.ar[c("Target", "Rated.Mean", "ANEW.Mean", "Difference")], by = "Target") %>%
+  rename(.,
+    "Valence.Rated.Mean" = Rated.Mean.x,
+    "Valence.ANEW.Mean" = ANEW.Mean.x,
+    "Valence.Difference" = Difference.x,
+    "Arousal.Rated.Mean" = Rated.Mean.y,
+    "Arousal.ANEW.Mean" = ANEW.Mean.y,
+    "Arousal.Difference" = Difference.y
+  ) %>%
+  mutate(.,
+    Valence.ANEW.abs = abs(.$Valence.ANEW.Mean - 4.5),
+    Valence.Rated.abs = abs(.$Valence.Rated.Mean - 4.5),
+    Arousal.ANEW.abs = abs(.$Arousal.ANEW.Mean - 4.5),
+    Arousal.Rated.abs = abs(.$Arousal.Rated.Mean - 4.5)
+  )
+
+#write.csv(sl.regression, file = "sl.regression.csv")
+
+big.glm<-glm(Reaction.Time ~
+Valence.ANEW.Mean +
+  Arousal.ANEW.Mean +
+  Valence.Rated.Mean +
+  Arousal.Rated.Mean +
+  Valence.ANEW.abs +
+  Arousal.ANEW.abs +
+  Valence.Rated.abs +
+  Arousal.Rated.abs +
+  bdi.tot +
+  stai.y1.tot +
+  stai.y2.tot +
+  X.Primed.Satiated + 
+  Target.WT,
+data = sl.regression
+) 
+baby.glm<-glm(Reaction.Time ~
+Valence.ANEW.Mean +
+  bdi.tot +
+  stai.y1.tot +
+  X.Primed.Satiated + 
+  Target.WT,
+data = sl.regression
+) 
+
+big.glm
+summary(big.glm)
+summ(big.glm)
+stepAIC(big.glm)
+
+baby.glm
+summary(baby.glm)
+summ(baby.glm)
+stepAIC(baby.glm)
+summ(glm(formula = Reaction.Time ~ bdi.tot + stai.y1.tot + Target.WT, 
+    data = sl.regression))
+
+
+```
+
+# Graphics
+```{r Graphics, message=FALSE, warning=FALSE, cache=TRUE, include=TRUE, paged.print=TRUE, fig.width=10,fig.height=7}
+
+#----
+rm.exn.ps<-data.frame(Primed.Satiated =c("Primed","Satiated"),
+                      Mean =c(1374.988,1419.129),
+                      SE =c(34.774,34.774),
+                      Lower  =c(1305.742,1349.882),
+                      Upper =c(1444.234,1488.375))
+
+ggplot(rm.exn.ps, aes(x= Primed.Satiated, y = Mean)) +
+    geom_point(size=3, shape=20)+
+    geom_errorbar(aes(ymin = Lower, ymax = Upper), size=.5, width=.13) +
+    ylab("Mean Reaction Time (ms)")+ 
+    expand_limits(y = 0:2000) +
+    scale_y_continuous(expand = c(0, 0)) +
+    ggtitle("Mean Reaction Time by Primed/Satiated")+
+    theme_grey()+
+    theme(rect = element_rect(fill = "transparent"))+
+    theme(text = element_text(size=20),axis.text.x = element_text(angle=20, hjust=1))
+
+
+#----
+rm.exn.wt.ps.val<-data.frame(Word.Type =c(rep("Emotion-label",4),rep("Emotion-laden",4)),
+                             Primed.Satiated =c(rep(c("Primed","Primed","Satiated","Satiated"),2)),
+                             Participant.Group =c(rep(c("Negative","Positive"),4)),
+                             Mean =c(1359.033,1368.900,1425.369,1391.637,1426.055,1345.964,1387.767,1471.741),
+                             SD =c(275.526,282.975,305.962,374.682,300.152,288.812,287.703,331.938)) %>%
+  mutate(., SE=.$SD/sqrt(35)) %>%
+  mutate(., Upper=.$Mean+.$SE,
+         Lower=.$Mean-.$SE)
+
+ggplot(rm.exn.wt.ps.val, aes(x= Word.Type, y = Mean, group=Primed.Satiated, color=Primed.Satiated)) +
+    geom_point(size=3, shape=20, position=position_dodge(.2))+
+    geom_errorbar(aes(ymin = Lower, ymax = Upper), size=.5, width=.13, position=position_dodge(.2)) +
+    geom_line(position=position_dodge(.2))+
+    facet_grid(cols= vars(Participant.Group)) +
+    ylab("Mean Reaction Time (ms)")+ 
+    expand_limits(y = 0:2000) +
+    scale_y_continuous(expand = c(0, 0)) +
+    ggtitle("Mean Reaction Time by Word Type & Primed/Satiated")+
+    theme_grey()+
+    theme(legend.title=element_blank())+
+    theme(rect = element_rect(fill = "transparent"))+
+    theme(text = element_text(size=20),axis.text.x = element_text(angle=20, hjust=1))
+
+#----
+rm.exn.bdi.ps<-data.frame(Primed.Satiated =c("Primed","Satiated"),
+                          Mean =c(1373.709,1420.407),
+                          SE =c(35.029,35.029),
+                          Lower  =c(1303.953,1350.650),
+                          Upper =c(1443.466,1490.164))
+
+ggplot(rm.exn.bdi.ps, aes(x= Primed.Satiated, y = Mean)) +
+    geom_point(size=3, shape=20)+
+    geom_errorbar(aes(ymin = Lower, ymax = Upper), size=.5, width=.13) +
+    ylab("Mean Reaction Time (ms)")+ 
+    expand_limits(y = 0:2000) +
+    scale_y_continuous(expand = c(0, 0)) +
+    ggtitle("Mean Reaction Time by Primed/Satiated")+
+    theme_grey()+
+    theme(rect = element_rect(fill = "transparent"))+
+    theme(text = element_text(size=20),axis.text.x = element_text(angle=20, hjust=1))
+
+#----
+
+rm.exn.bdi.wt.ps.val<-data.frame(Word.Type =c(rep("Emotion-label",4),rep("Emotion-laden",4)),
+                                 Primed.Satiated =c(rep(c("Primed","Primed","Satiated","Satiated"),2)),
+                                 Participant.Group =c(rep(c("Negative","Positive"),4)),
+                                 Mean =c(1359.033,1368.900,1425.369,1391.637,1426.055,1345.964,1387.767,1471.741),
+                                 SD =c(275.526,282.975,305.962,374.682,300.152,288.812,287.703,331.938)) %>%
+  mutate(., SE=.$SD/sqrt(35)) %>%
+  mutate(., Upper=.$Mean+.$SE,
+         Lower=.$Mean-.$SE)
+
+ggplot(rm.exn.bdi.wt.ps.val, aes(x= Word.Type, y = Mean, group=Primed.Satiated, color=Primed.Satiated)) +
+    geom_point(size=3, shape=20, position=position_dodge(.2))+
+    geom_errorbar(aes(ymin = Lower, ymax = Upper), size=.5, width=.13, position=position_dodge(.2)) +
+    geom_line(position=position_dodge(.2))+
+    facet_grid(cols= vars(Participant.Group)) +
+    ylab("Mean Reaction Time (ms)")+ 
+    expand_limits(y = 0:2000) +
+    scale_y_continuous(expand = c(0, 0)) +
+    ggtitle("Mean Reaction Time by Word Type & Primed/Satiated")+
+    theme_grey()+
+    theme(legend.title=element_blank())+
+    theme(rect = element_rect(fill = "transparent"))+
+    theme(text = element_text(size=20),axis.text.x = element_text(angle=20, hjust=1))
+
+#----
+rm.incn.wt<-data.frame(Word.Type =c("Emotion-label","Emotion-laden","Neutral"),
+                       Mean =c(1386.235,1407.882,1585.602),
+                       SE =c(34.363,34.363,34.363),
+                       Lower  =c(1318.069,1339.716,1517.436),
+                       Upper =c(1454.401,1476.048,1653.768))
+
+ggplot(rm.incn.wt, aes(x= Word.Type, y = Mean)) +
+    geom_point(size=3, shape=20)+
+    geom_errorbar(aes(ymin = Lower, ymax = Upper), size=.5, width=.13) +
+    ylab("Mean Reaction Time (ms)")+ 
+    expand_limits(y = 0:2000) +
+    scale_y_continuous(expand = c(0, 0)) +
+    ggtitle("Mean Reaction Time by Word Type")+
+    theme_grey()+
+    theme(rect = element_rect(fill = "transparent"))+
+    theme(text = element_text(size=20),axis.text.x = element_text(angle=20, hjust=1))
+
+#----
+rm.incn.wt.ps<-data.frame(Word.Type =c("Emotion-label","Emotion-label","Emotion-laden","Emotion-laden","Neutral","Neutral"),
+                          Primed.Satiated =c(rep(c("Primed","Satiated"),3)),
+                          Mean =c(1363.966,1408.503,1386.010,1429.754,1607.085,1564.119),
+                          SE =c(36.394,36.394,36.394,36.394,36.394,36.394),
+                          Lower  =c(1291.946,1336.482,1313.989,1357.733,1535.064,1492.098),
+                          Upper =c(1435.987,1480.524,1458.030,1501.775,1679.106,1636.140))
+
+ggplot(rm.incn.wt.ps, aes(x= Word.Type, y = Mean, group=Primed.Satiated, color=Primed.Satiated)) +
+    geom_point(size=3, shape=20, position=position_dodge(.2))+
+    geom_errorbar(aes(ymin = Lower, ymax = Upper), size=.5, width=.13, position=position_dodge(.2)) +
+    geom_line(position=position_dodge(.2))+
+    ylab("Mean Reaction Time (ms)")+ 
+    expand_limits(y = 0:2000) +
+    scale_y_continuous(expand = c(0, 0)) +
+    ggtitle("Mean Reaction Time by Word Type & Primed/Satiated")+
+    theme_grey()+
+    theme(legend.title=element_blank())+
+    theme(rect = element_rect(fill = "transparent"))+
+    theme(text = element_text(size=20),axis.text.x = element_text(angle=20, hjust=1))
+
+#----
+rm.incn.wt.ps.val<-data.frame(Word.Type =c(rep("Emotion-label",4),rep("Emotion-laden",4),rep("Neutral",4)),
+                              Primed.Satiated =c(rep(c("Primed","Primed","Satiated","Satiated"),3)),
+                              Participant.Group =c(rep(c("Negative","Positive"),6)),
+                              Mean =c(1359.033,1368.900,1425.369,1391.637,1426.055,1345.964,1387.767,1471.741,1635.989,1578.180,1595.875,1532.362),
+                              SD =c(275.526,282.975,305.962,374.682,300.152,288.812,287.703,331.938,266.254,332.288,244.566,339.172)) %>%
+  mutate(., SE=.$SD/sqrt(35)) %>%
+  mutate(., Upper=.$Mean+.$SE,
+         Lower=.$Mean-.$SE)
+
+ggplot(rm.incn.wt.ps.val, aes(x= Word.Type, y = Mean, group=Primed.Satiated,color=Primed.Satiated)) +
+    geom_point(size=3, shape=20, position=position_dodge(.2))+
+    geom_errorbar(aes(ymin = Lower, ymax = Upper), size=.5, width=.13, position=position_dodge(.2)) +
+    geom_line(position=position_dodge(.2))+
+    facet_grid(cols= vars(Participant.Group)) +
+    ylab("Mean Reaction Time (ms)")+ 
+    expand_limits(y = 0:2000) +
+    scale_y_continuous(expand = c(0, 0)) +
+    ggtitle("Mean Reaction Time by Word Type & Primed/Satiated")+
+    theme_grey()+
+    theme(legend.title=element_blank())+
+    theme(rect = element_rect(fill = "transparent"))+
+    theme(text = element_text(size=20),axis.text.x = element_text(angle=20, hjust=1))
+
+#----
+rm.incn.bdi.wt<-data.frame(Word.Type =c("Emotion-label","Emotion-laden","Neutral"),
+                           Mean =c(1381.240,1406.022,1592.456),
+                           SE =c(34.926,34.926,34.926),
+                           Lower  =c(1312.003,1336.785,1523.219),
+                           Upper =c(1450.477,1475.260,1661.693))
+
+ggplot(rm.incn.bdi.wt, aes(x= Word.Type, y = Mean)) +
+    geom_point(size=3, shape=20)+
+    geom_errorbar(aes(ymin = Lower, ymax = Upper), size=.5, width=.13) +
+    ylab("Mean Reaction Time (ms)")+ 
+    expand_limits(y = 0:2000) +
+    scale_y_continuous(expand = c(0, 0)) +
+    ggtitle("Mean Reaction Time by Word Type")+
+    theme_grey()+
+    theme(rect = element_rect(fill = "transparent"))+
+    theme(text = element_text(size=20),axis.text.x = element_text(angle=20, hjust=1))
+
+#----
+rm.incn.bdi.wt.ps<-data.frame(Word.Type =c("Emotion-label","Emotion-label","Emotion-laden","Emotion-laden","Neutral","Neutral"),
+                              Primed.Satiated =c(rep(c("Primed","Satiated"),3)),
+                              Mean =c(1356.469,1406.011,1384.096,1427.949,1616.490,1568.423),
+                              SE =c(37.409,37.409,37.409,37.409,37.409,37.409),
+                              Lower  =c(1282.504,1332.046,1310.131,1353.984,1542.525,1494.458),
+                              Upper =c(1430.433,1479.976,1458.060,1501.913,1690.454,1642.387))
+
+ggplot(rm.incn.bdi.wt.ps, aes(x= Word.Type, y = Mean, group=Primed.Satiated, color=Primed.Satiated)) +
+    geom_point(size=3, shape=20, position=position_dodge(.2))+
+    geom_errorbar(aes(ymin = Lower, ymax = Upper), size=.5, width=.13, position=position_dodge(.2)) +
+    geom_line(position=position_dodge(.2))+
+    ylab("Mean Reaction Time (ms)")+ 
+    expand_limits(y = 0:2000) +
+    scale_y_continuous(expand = c(0, 0)) +
+    ggtitle("Mean Reaction Time by Word Type & Primed/Satiated")+
+    theme_grey()+
+    theme(legend.title=element_blank())+
+    theme(rect = element_rect(fill = "transparent"))+
+    theme(text = element_text(size=20),axis.text.x = element_text(angle=20, hjust=1))
+
+#----
+rm.incn.bdi.wt.ps.val<-data.frame(Word.Type =c(rep("Emotion-label",4),rep("Emotion-laden",4),rep("Neutral",4)),
+                                Primed.Satiated =c(rep(c("Primed","Primed","Satiated","Satiated"),3)),
+                                Participant.Group =c(rep(c("Negative","Positive"),6)),
+                                Mean =c(1359.033,1368.900,1425.369,1391.637,1426.055,1345.964,1387.767,1471.741,1635.989,1578.180,1595.875,1532.362),
+                                SD =c(275.526,282.975,305.962,374.682,300.152,288.812,287.703,331.938,266.254,332.288,244.566,339.172)) %>%
+  mutate(., SE=.$SD/sqrt(35)) %>%
+  mutate(., Upper=.$Mean+.$SE,
+         Lower=.$Mean-.$SE)
+
+ggplot(rm.incn.bdi.wt.ps.val, aes(x= Word.Type, y = Mean, group=Primed.Satiated, color=Primed.Satiated)) +
+    geom_point(size=3, shape=20, position=position_dodge(.2))+
+    geom_errorbar(aes(ymin = Lower, ymax = Upper), size=.5, width=.13, position=position_dodge(.2)) +
+    geom_line(position=position_dodge(.2))+
+    facet_grid(cols= vars(Participant.Group)) +
+    ylab("Mean Reaction Time (ms)")+ 
+    expand_limits(y = 0:2000) +
+    scale_y_continuous(expand = c(0, 0)) +
+    ggtitle("Mean Reaction Time by Word Type & Primed/Satiated")+
+    theme_grey()+
+    theme(legend.title=element_blank())+
+    theme(rect = element_rect(fill = "transparent"))+
+    theme(text = element_text(size=20),axis.text.x = element_text(angle=20, hjust=1))
+
+```
+
+#scratch
+```{r scratch, message=FALSE, warning=FALSE, cache=TRUE, include=TRUE, paged.print=TRUE}
+
+
+#sl.factorized <- sl.trimmed %>%
+#    mutate_if(sapply(., is.character), as.factor) %>%
+#    mutate_if(sapply(., is.factor), fac.to.num)
+#sl.agg.desc <- sl.factorized %>%
+#    dplyr::select(., Session.ID, Participant.Group, X.Primed.Satiated, Target.V, Target.WT, TPRValence, bdi, Error.Code, Reaction.Time) %>%
+#    group_by(., Session.ID, Participant.Group, X.Primed.Satiated, Target.V, TPRValence, Target.WT, bdi, Error.Code) %>%
+#    summarise_all(list(length = length, mean = mean, median = median, sd = sd, min = min, max = max)) %>%
+#    rename(RTCMean = "mean", n = "length", Congruency = TPRValence)
+#  sl.agg <- sl.factorized %>%
+#    dplyr::select(., Session.ID, Participant.Group, X.Primed.Satiated, Target.V, Target.WT, TPRValence, bdi, Error.Code, Reaction.Time) %>%
+#   group_by(., Session.ID, Participant.Group, X.Primed.Satiated, Target.V, TPRValence, Target.WT, bdi, Error.Code) %>%
+#    summarise_all(list(mean = mean)) %>%
+#    rename(RTCMean = mean, Congruency = TPRValence)
+#    
+#sl.agg.rm <- sl.factorized %>%
+#    dplyr::select(Session.ID, Participant.Group, X.Primed.Satiated, Target.V, Target.WT, TPRValence, bdi, Error.Code, Reaction.Time) %>%
+#    group_by(Session.ID, Participant.Group, X.Primed.Satiated, Target.V, TPRValence, Target.WT, bdi, Error.Code) %>%
+#    summarise_all(list(mean = mean)) %>%
+#    filter(Error.Code == 1) %>%
+#    merge(., c(distinct(sl.agg[, 1:2])), by = "Session.ID") %>%
+#    dplyr::select(., -Participant.Group.y) %>%
+#    rename(RTCMean = mean, Congruency = TPRValence, Participant.Group = Participant.Group.x) %>%
+#    mutate(Participant.Group = ifelse(.$Participant.Group %in% c(1, 2), 1, 2))
+#
+#  sl.agg.rm.neutral.spss <- sl.agg.rm %>%
+#    recast(.,
+#      formula = Session.ID ~ Target.WT + X.Primed.Satiated,
+#      id.var = c("Session.ID", "Target.WT", "X.Primed.Satiated"),
+#      measure.var = "RTCMean",
+#      fun = mean
+#    ) %>%
+#    merge(., c(distinct(sl.agg[, c(1:2, 7)])), by = "Session.ID") %>%
+#    mutate(Participant.Group = ifelse(.$Participant.Group %in% c(1, 2), 1, 2))
+#  write.csv(sl.agg.rm.neutral.spss, "sl.agg.rm.spss.neutral.csv")
+  
+```
+

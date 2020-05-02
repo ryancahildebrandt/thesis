@@ -1,0 +1,37 @@
+timingtest3
+Ryan Hildebrandt Thesis Study timing fixed version
+04/09/2019	11:17:46 AM
+
+Participant	Participant	Session	Block	Block	Trial	Trial	Event	Event	Cumulative	Participant			Pressed Or	X	Y	Correct	Error	Reaction	Reaction Time	Font Color	ISI Durations	Screen Location	Screen Location II	Repetitions
+Group	Name	ID	Name	No.	Name	No.	Name	No.	Time	Response	Key	Key	Released	Position	Position	Response	Code	Time	(Trial Variable)	(Trial Variable)	(Trial Variable)	(Trial Variable)	(Trial Variable)	(Trial Variable)	Primed/Satiated	Match/Mismatch	Valence	Word Type	Pair Type	Block Valence	Trial Type	Word Pair Valence
+PilotA	timingtest3	timingtest3	Practice	2	PRACTICE S, 1	5	Target PRACTICE31 (1, bulbs)	143	26814							(any response)	NR	0							Satiated							
+PilotA	timingtest3	timingtest3	Practice	2	PRACTICE S, 1	5	Pair 1 PRACTICE 1 (1, cake)	147	27891							(any response)	NR	0							Satiated							
+PilotA	timingtest3	timingtest3	Practice	2	PRACTICE S, 1	5	Pair 2 PRACTICE 1 (1, overjoyed)	150	28331	Mismatch	/					Match	E	434							Satiated							
+PilotA	timingtest3	timingtest3	Practice	2	PRACTICE P, 3	4	Target PRACTICE 2 (3, stork)	18	31440							(any response)	NR	0							Primed							
+PilotA	timingtest3	timingtest3	Practice	2	PRACTICE P, 3	4	Pair 1 PRACTICE (3, drive)	22	32513							(any response)	NR	0							Primed							
+PilotA	timingtest3	timingtest3	Practice	2	PRACTICE P, 3	4	Pair 2 PRACTICE (3, burger)	25	32911	Mismatch	/					Match	E	392							Primed							
+PilotA	timingtest3	timingtest3	Practice	2	PRACTICE S, 2	6	Target PRACTICE31 (2, shirt)	144	56747							(any response)	NR	0							Satiated							
+PilotA	timingtest3	timingtest3	Practice	2	PRACTICE S, 2	6	Pair 1 PRACTICE 1 (2, golfer)	148	57825							(any response)	NR	0							Satiated							
+PilotA	timingtest3	timingtest3	Practice	2	PRACTICE S, 2	6	Pair 2 PRACTICE 1 (2, moose)	151	58269	Mismatch	/					Match	E	439							Satiated							
+PilotA	timingtest3	timingtest3	Practice	2	PRACTICE P, 2	3	Target PRACTICE 2 (2, book)	17	61369							(any response)	NR	0							Primed							
+PilotA	timingtest3	timingtest3	Practice	2	PRACTICE P, 2	3	Pair 1 PRACTICE (2, evil)	21	62446							(any response)	NR	0							Primed							
+PilotA	timingtest3	timingtest3	Practice	2	PRACTICE P, 2	3	Pair 2 PRACTICE (2, disaster)	24	63445	Mismatch	/					Match	E	993							Primed							
+PilotA	timingtest3	timingtest3	Practice	2	PRACTICE P, 1	2	Target PRACTICE 2 (1, cheese)	16	66542							(any response)	NR	0							Primed							
+PilotA	timingtest3	timingtest3	Practice	2	PRACTICE P, 1	2	Pair 1 PRACTICE (1, laugh)	20	67619							(any response)	NR	0							Primed							
+PilotA	timingtest3	timingtest3	Practice	2	PRACTICE P, 1	2	Pair 2 PRACTICE (1, water)	23	68462	Mismatch	/					Match	E	838							Primed							
+PilotA	timingtest3	timingtest3	Practice	2	PRACTICE S, 3	7	Target PRACTICE31 (3, drag)	145	92289							(any response)	NR	0							Satiated							
+PilotA	timingtest3	timingtest3	Practice	2	PRACTICE S, 3	7	Pair 1 PRACTICE 1 (3, attack)	149	93364							(any response)	NR	0							Satiated							
+PilotA	timingtest3	timingtest3	Practice	2	PRACTICE S, 3	7	Pair 2 PRACTICE 1 (3, butter)	152	94013	Mismatch	/					Mismatch	C	643							Satiated							
+PilotA	timingtest3	timingtest3	Start Screen 1	3	Start Screen	8	Start Screen	153	95183	Mismatch	/					Match; Mismatch	C	1124														
+PilotA	timingtest3	timingtest3	Neutral	4	Neutral Satiation Match, 3	21	Target NEU.S.M 4 (3, reptile)	389	119016							(any response)	NR	0							Satiated	Match	Neutral	Neutral	Neutral	Neutral	Satiation	Match
+PilotA	timingtest3	timingtest3	Neutral	4	Neutral Satiation Match, 3	21	Pair 1 NEU.S.M 3 (3, cake)	395	120094							(any response)	NR	0							Satiated	Match	Neutral (trial)	Neutral (trial)	Neutral	Neutral	Satiation (trial)	Match (trial)
+PilotA	timingtest3	timingtest3	Neutral	4	Neutral Satiation Match, 3	21	Pair 2 NEU.S.M 3 (3, cute)	400	121047	Match	z					Match	C	947							Satiated	Match	Neutral (trial)	Neutral (trial)	Neutral	Neutral	Satiation (trial)	Match (trial)
+PilotA	timingtest3	timingtest3	Neutral	4	Neutral Prime Mismatch, 5	18	Target NEU.P.MM 3 (5, lion)	200	124156							(any response)	NR	0							Primed	Mismatch	Neutral	Neutral	Neutral	Neutral	Prime	Mismatch
+PilotA	timingtest3	timingtest3	Neutral	4	Neutral Prime Mismatch, 5	18	Pair 1 NEU.P.MM 2 (5, bride)	206	125233							(any response)	NR	0							Primed	Mismatch	Neutral (trial)	Neutral (trial)	Neutral	Neutral	Prime (trial)	Mismatch (trial)
+PilotA	timingtest3	timingtest3	Neutral	4	Neutral Prime Mismatch, 5	18	Pair 2 NEU.P.MM 2 (5, unhappy)	211	125997	Match	z					Mismatch	E	763							Primed	Mismatch	Neutral (trial)	Neutral (trial)	Neutral	Neutral	Prime (trial)	Mismatch (trial)
+PilotA	timingtest3	timingtest3	Neutral	4	Neutral Satiation Mismatch, 1	24	Target NEU.S.MM 5 (1, trumpet)	578	149833							(any response)	NR	0							Satiated	Mismatch	Neutral	Neutral	Neutral	Neutral	Satiation	Mismatch
+PilotA	timingtest3	timingtest3	Neutral	4	Neutral Satiation Mismatch, 1	24	Pair 1 NEU.S.MM 4 (1, jail)	584	150911							(any response)	NR	0							Satiated	Mismatch	Neutral (trial)	Neutral (trial)	Neutral	Neutral	Satiation (trial)	Mismatch (trial)
+PilotA	timingtest3	timingtest3	Neutral	4	Neutral Satiation Mismatch, 1	24	Pair 2 NEU.S.MM 4 (1, truck)	589	151694	Match	z					Mismatch	E	782							Satiated	Mismatch	Neutral (trial)	Neutral (trial)	Neutral	Neutral	Satiation (trial)	Mismatch (trial)
+PilotA	timingtest3	timingtest3	Neutral	4	Neutral Prime Match, 1	9	Target NEU.P.M 2 (1, hit)	167	154804							(any response)	NR	0							Primed	Match	Neutral	Neutral	Neutral	Neutral	Prime	Match
+PilotA	timingtest3	timingtest3	Neutral	4	Neutral Prime Match, 1	9	Pair 1 NEU.P.M 1 (1, tumor)	173	155883							(any response)	NR	0							Primed	Match	Neutral (trial)	Neutral (trial)	Neutral	Neutral	Prime (trial)	Match (trial)
+PilotA	timingtest3	timingtest3	Neutral	4	Neutral Prime Match, 1	9	Pair 2 NEU.P.M 1 (1, rotten)	178	156914	Match	z					Match	C	1025							Primed	Match	Neutral (trial)	Neutral (trial)	Neutral	Neutral	Prime (trial)	Match (trial)
