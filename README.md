@@ -10,19 +10,19 @@ Current literature suggests emotion-label words (e.g., sad) and emotion-laden wo
 
 ## Code & Analyses
 
-[**Here**]() is the knit output of [**this**]() R code, containing most data processing, analyses, and graphics for the study. 
+[**Here**](http://htmlpreview.github.io/?https://github.com/ryancahildebrandt/thesis/blob/master/Thesis-Code-Github.html) is the knit output of [**this**](/Thesis-Code-Github.Rmd) R code, containing most data processing, analyses, and graphics for the study. 
 
 ## Outputs
 
 ### The main repeated measures ANOVAs are included here:
 
-- [Excluding neutral & mood state](/rm.noneu.nomood.html)
+- [Excluding neutral & mood state](http://htmlpreview.github.io/?https://github.com/ryancahildebrandt/thesis/blob/master/rm.noneu.nomood.html)
 
-- [Excluding neutral, including mood state](/rm.noneu.mood.html)
+- [Excluding neutral, including mood state](http://htmlpreview.github.io/?https://github.com/ryancahildebrandt/thesis/blob/master//rm.noneu.mood.html)
 
-- [Including neutral, excluding mood state](/rm.neu.nomood.html)
+- [Including neutral, excluding mood state](http://htmlpreview.github.io/?https://github.com/ryancahildebrandt/thesis/blob/master//rm.neu.nomood.html)
 
-- [Including neutral & mood state](/rm.neu.mood.html)
+- [Including neutral & mood state](http://htmlpreview.github.io/?https://github.com/ryancahildebrandt/thesis/blob/master//rm.neu.mood.html)
 
 ### And some plots showing the main findings of interest:
 
@@ -36,7 +36,7 @@ Current literature suggests emotion-label words (e.g., sad) and emotion-laden wo
 
 ## Summary of Findings
 
-- Slower RT’s for negative targets may be a result of negative words’ increased attention capture, impairing disengagement from the target in order to complete subsequent task
-- Conversely, the lack of observed satiation for negative emotion-label targets may relate to the salience of negative stimuli, making their meanings more difficult to satiate in the first place
-- While neutral targets also elicited slower RT’s, this may instead be due to the ambiguity inherent in categorizing their valence, as they are not immediately recognized as positive or negatively valenced
-- Compared to tasks commonly used in the semantic satiation literature, the task in the current study resulted in lower accuracy rates, potentially indicating that the present task was exceptionally difficult. This may have obscured expected effects from the IVs
+- **Slower** RT’s for **negative** targets may be a result of negative words’ increased **attention capture**, impairing disengagement from the target in order to complete subsequent task
+- Conversely, the **lack of observed satiation** for **negative emotion-label** targets may relate to the **salience** of negative stimuli, making their meanings **more difficult to satiate** in the first place
+- While **neutral** targets also elicited slower RT’s, this may instead be due to the **ambiguity** inherent in categorizing their valence, as they are not immediately recognized as positive or negatively valenced
+- Compared to tasks commonly used in the semantic satiation literature, the task in the current study resulted in **lower accuracy** rates, potentially indicating that the present task was **exceptionally difficult**. This may have obscured expected effects from the IVs
