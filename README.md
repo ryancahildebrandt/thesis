@@ -1,4 +1,5 @@
 # thesis
+[*Open*](https://gitpod.io/#https://github.com/ryancahildebrandt/thesis) *in gitpod*
 
 Scripts from my graduate thesis looking at emotion word processing. I'll pop the abstract down below, but feel free to reach out if you'd like the full paper or presentation posters! (update: it's [here!](https://scholarworks.rit.edu/theses/10346/))
 
