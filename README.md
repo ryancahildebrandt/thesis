@@ -1,5 +1,6 @@
 # thesis
-[*Open*](https://gitpod.io/#https://github.com/ryancahildebrandt/thesis) *in gitpod*
+[![Open in gitpod](https://gitpod.io/button/open-in-gitpod.svg)](https://gitpod.io/#https://github.com/ryancahildebrandt/thesis)
+[![This project contains 0% LLM-generated content](https://brainmade.org/88x31-dark.png)](https://brainmade.org/)
 
 Scripts from my graduate thesis looking at emotion word processing. I'll pop the abstract down below, but feel free to reach out if you'd like the full paper or presentation posters! (update: it's [here!](https://scholarworks.rit.edu/theses/10346/))
 
